@@ -13,13 +13,17 @@ const config: Config = {
           900: "#0a0f1e",
           800: "#0f172a",
           700: "#1e293b",
+          600: "#1e3a8a",
+          500: "#2563eb",
+          400: "#60a5fa",
+          300: "#93c5fd",
         },
       },
       fontFamily: {
         sans: ["Inter", "sans-serif"],
       },
     },
-      },
+  },
 };
 
 export default config;
