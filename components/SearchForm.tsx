@@ -3,12 +3,15 @@ import { useState, useRef, useEffect } from 'react';
 import { searchAirports, type Airport } from '@/lib/airports';
 import FlightCard from '@/components/FlightCard';
 import type { Flight } from '@/lib/flights';
+import type { MilesResult } from '@/lib/miles';
 
 type TravelClass = 'economy' | 'business' | 'first';
 type TripType = 'one-way' | 'round-trip';
 
+type EnrichedFlight = Flight & { miles: number; taxes: number; analysis: MilesResult };
+
 interface ApiResponse {
-  flights: (Flight & { miles: number; taxes: number; analysis: { cashPrice: number; milesCost: number; taxesFees: number; totalMilesCost: number; savings: number; milesWin: boolean; valuePerMile: number; savingsPercent: number } })[];
+  flights: EnrichedFlight[];
   from: string;
   to: string;
   date: string;
@@ -74,7 +77,7 @@ export default function SearchForm() {
       } else {
         setApiData(data);
       }
-    } catch (err) {
+    } catch {
       setError('Erreur réseau. Veuillez réessayer.');
     } finally {
       setLoading(false);
@@ -83,9 +86,7 @@ export default function SearchForm() {
 
   return (
     <div className="space-y-6">
-      {/* Search Form */}
       <form onSubmit={handleSearch} className="glass rounded-3xl p-6 space-y-5">
-        {/* Trip type + Class */}
         <div className="flex flex-wrap gap-3 justify-between">
           <div className="flex gap-2">
             {(['one-way', 'round-trip'] as TripType[]).map((type) => (
@@ -109,7 +110,6 @@ export default function SearchForm() {
           </div>
         </div>
 
-        {/* Origin */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="relative" ref={originRef}>
             <label className="block text-white/50 text-xs font-semibold uppercase tracking-widest mb-1.5">Origine</label>
@@ -133,8 +133,6 @@ export default function SearchForm() {
               </div>
             )}
           </div>
-
-          {/* Destination */}
           <div className="relative" ref={destRef}>
             <label className="block text-white/50 text-xs font-semibold uppercase tracking-widest mb-1.5">Destination</label>
             <input type="text" value={destination}
@@ -159,7 +157,6 @@ export default function SearchForm() {
           </div>
         </div>
 
-        {/* Dates + Currency */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-white/50 text-xs font-semibold uppercase tracking-widest mb-1.5">Départ</label>
@@ -190,14 +187,12 @@ export default function SearchForm() {
         </button>
       </form>
 
-      {/* Error */}
       {error && (
         <div className="glass rounded-2xl px-6 py-4 text-red-400 text-sm font-medium">
           ⚠️ {error}
         </div>
       )}
 
-      {/* Results */}
       {apiData && apiData.flights.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -215,8 +210,8 @@ export default function SearchForm() {
               )}
             </div>
           </div>
-                    {apiData.flights.map((flight, idx) => (
-              <FlightCard key={flight.id} flight={flight} rank={idx} />
+          {apiData.flights.map((flight, idx) => (
+            <FlightCard key={flight.id} flight={flight} rank={idx} />
           ))}
         </div>
       )}
