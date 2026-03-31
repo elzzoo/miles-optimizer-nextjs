@@ -19,21 +19,21 @@ export default function PromosBanner() {
         airline: 'Air France',
         title: '-30% sur Paris-Dakar',
         description: 'Offre valable jusqu\'au 15 avril',
-        link: '#',
+        link: 'https://www.airfrance.sn',
         icon: '🇫🇷'
       },
       {
         airline: 'Turkish Airlines',
         title: 'Miles bonus x2',
         description: 'Sur tous les vols vers l\'Afrique',
-        link: '#',
+        link: 'https://www.turkishairlines.com',
         icon: '🇹🇷'
       },
       {
         airline: 'Emirates',
         title: 'Business Class -40%',
         description: 'Offre limitée — places rares',
-        link: '#',
+        link: 'https://www.emirates.com',
         icon: '🇦🇪'
       }
     ];
@@ -56,7 +56,6 @@ export default function PromosBanner() {
 
   return (
     <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl overflow-hidden relative">
-      {/* Glow effect */}
       <div className="absolute -top-16 -left-16 w-48 h-48 bg-blue-600/20 rounded-full blur-3xl pointer-events-none"></div>
 
       <h2 className="text-xl font-black mb-6 text-white flex items-center gap-2 uppercase tracking-wider">
@@ -65,9 +64,12 @@ export default function PromosBanner() {
 
       <div className="grid md:grid-cols-3 gap-4">
         {promos.map((promo, index) => (
-          <div
+          <a
             key={index}
-            className="bg-white/5 backdrop-blur-md p-5 rounded-2xl border border-white/10 hover:border-blue-500/40 hover:-translate-y-1 transition-all duration-300 group"
+            href={promo.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-white/5 backdrop-blur-md p-5 rounded-2xl border border-white/10 hover:border-blue-500/40 hover:-translate-y-1 transition-all duration-300 group block"
           >
             <div className="flex flex-col h-full">
               <div className="flex justify-between items-start mb-3">
@@ -78,12 +80,12 @@ export default function PromosBanner() {
               <p className="text-white/60 text-xs mt-auto">{promo.description}</p>
 
               <div className="mt-4 pt-4 border-t border-white/10">
-                <button className="text-[10px] font-bold text-white/70 hover:text-blue-400 flex items-center gap-1 transition-colors">
-                  PROFITER DE L&apos;OFFRE <span className="text-xs">→</span>
-                </button>
+                <div className="text-[10px] font-bold text-white/70 group-hover:text-blue-400 flex items-center gap-1 transition-colors">
+                  PROFITER DE L'OFFRE <span className="text-xs">→</span>
+                </div>
               </div>
             </div>
-          </div>
+          </a>
         ))}
       </div>
     </div>
