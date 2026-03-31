@@ -14,6 +14,7 @@ interface FlightResult {
   duration: string;
   isDirect: boolean;
   class: TravelClass;
+  bookingUrl: string;
 }
 
 export default function SearchForm() {
@@ -24,6 +25,7 @@ export default function SearchForm() {
   const [departureDate, setDepartureDate] = useState('');
   const [returnDate, setReturnDate] = useState('');
   const [currency, setCurrency] = useState('XOF');
+  const [milesPurchasePrice, setMilesPurchasePrice] = useState<number>(currency === 'XOF' ? 15 : 0.025); // Prix d'acquisition par mile
   const [originResults, setOriginResults] = useState<Airport[]>([]);
   const [destinationResults, setDestinationResults] = useState<Airport[]>([]);
   const [showOriginResults, setShowOriginResults] = useState(false);
@@ -63,7 +65,8 @@ export default function SearchForm() {
           arrivalTime: '18:45',
           duration: '6h 15m',
           isDirect: true,
-          class: travelClass
+          class: travelClass,
+          bookingUrl: 'https://www.airfrance.sn'
         },
         {
           airline: 'Turkish Airlines',
@@ -74,7 +77,8 @@ export default function SearchForm() {
           arrivalTime: '06:30',
           duration: '8h 15m',
           isDirect: false,
-          class: travelClass
+          class: travelClass,
+          bookingUrl: 'https://www.turkishairlines.com'
         }
       ];
       setResults(mockResults);
@@ -89,35 +93,49 @@ export default function SearchForm() {
     <div className="space-y-10">
       <div className="glass p-10 rounded-[2.5rem] border border-white/10 shadow-2xl relative overflow-hidden">
         <form onSubmit={handleSearch} className="relative z-10 space-y-8">
-          <div className="flex flex-wrap gap-4">
-            <div className="inline-flex p-1.5 bg-navy-950/50 rounded-2xl border border-white/5">
-              {['one-way', 'round-trip'].map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => setTripType(type as any)}
-                  className={`px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
-                    tripType === type ? 'bg-navy-600 text-white shadow-lg' : 'text-white/40 hover:text-white/70'
-                  }`}
-                >
-                  {type === 'one-way' ? 'Aller Simple' : 'Aller-Retour'}
-                </button>
-              ))}
+          <div className="flex flex-wrap gap-4 items-center justify-between">
+            <div className="flex gap-4">
+              <div className="inline-flex p-1.5 bg-navy-950/50 rounded-2xl border border-white/5">
+                {['one-way', 'round-trip'].map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setTripType(type as any)}
+                    className={`px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
+                      tripType === type ? 'bg-navy-600 text-white shadow-lg' : 'text-white/40 hover:text-white/70'
+                    }`}
+                  >
+                    {type === 'one-way' ? 'Aller Simple' : 'Aller-Retour'}
+                  </button>
+                ))}
+              </div>
+
+              <div className="inline-flex p-1.5 bg-navy-950/50 rounded-2xl border border-white/5">
+                {(['economy', 'business', 'first'] as TravelClass[]).map((cls) => (
+                  <button
+                    key={cls}
+                    type="button"
+                    onClick={() => setTravelClass(cls)}
+                    className={`px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
+                      travelClass === cls ? 'bg-blue-600 text-white shadow-lg' : 'text-white/40 hover:text-white/70'
+                    }`}
+                  >
+                    {cls === 'economy' ? 'Éco' : cls === 'business' ? 'Business' : 'First'}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className="inline-flex p-1.5 bg-navy-950/50 rounded-2xl border border-white/5">
-              {(['economy', 'business', 'first'] as TravelClass[]).map((cls) => (
-                <button
-                  key={cls}
-                  type="button"
-                  onClick={() => setTravelClass(cls)}
-                  className={`px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
-                    travelClass === cls ? 'bg-blue-600 text-white shadow-lg' : 'text-white/40 hover:text-white/70'
-                  }`}
-                >
-                  {cls === 'economy' ? 'Éco' : cls === 'business' ? 'Business' : 'First'}
-                </button>
-              ))}
+            <div className="bg-navy-950/50 p-3 rounded-2xl border border-white/5 flex items-center gap-4">
+              <label className="text-[10px] font-black uppercase tracking-widest text-navy-400">Coût d'acquisition (1 Mile)</label>
+              <input 
+                type="number" 
+                step="0.001"
+                value={milesPurchasePrice} 
+                onChange={(e) => setMilesPurchasePrice(parseFloat(e.target.value))}
+                className="bg-navy-900/50 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white w-24 focus:outline-none focus:border-blue-500"
+              />
+              <span className="text-[10px] font-bold text-white/40">{currency}</span>
             </div>
           </div>
 
@@ -179,7 +197,7 @@ export default function SearchForm() {
             )}
             <div className={`space-y-2 ${tripType === 'one-way' ? 'md:col-span-2' : ''}`}>
               <label className="text-[10px] font-black uppercase tracking-widest text-navy-400 ml-4 block">Devise</label>
-              <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="w-full bg-navy-900/50 border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-navy-500 appearance-none">
+              <select value={currency} onChange={(e) => { setCurrency(e.target.value); setMilesPurchasePrice(e.target.value === 'XOF' ? 15 : 0.025); }} className="w-full bg-navy-900/50 border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-navy-500 appearance-none">
                 <option value="XOF">FCFA (XOF)</option>
                 <option value="EUR">Euro (€)</option>
                 <option value="USD">Dollar ($)</option>
@@ -201,13 +219,14 @@ export default function SearchForm() {
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-10 duration-700">
           <div className="flex items-center justify-between px-4">
             <h2 className="text-xl font-black text-white uppercase tracking-tighter italic">Résultats en {travelClass.toUpperCase()}</h2>
-            <div className="text-[10px] text-white/30 uppercase tracking-widest font-bold">Optimisé via MilesDB</div>
+            <div className="text-[10px] text-white/30 uppercase tracking-widest font-bold">Analyse Coût Réel Miles vs Cash</div>
           </div>
 
           <div className="grid gap-4">
             {results.map((flight, idx) => {
-              const valuePerMile = flight.cashPrice / flight.milesRequired;
-              const isOptimized = valuePerMile > (currency === 'XOF' ? 12 : 0.02);
+              const totalMilesCost = flight.milesRequired * milesPurchasePrice;
+              const isMilesBetter = totalMilesCost < flight.cashPrice;
+              const savings = flight.cashPrice - totalMilesCost;
 
               return (
                 <div key={idx} className="bg-navy-950/40 backdrop-blur-md border border-white/5 rounded-[2rem] p-8 hover:border-blue-500/30 transition-all group relative overflow-hidden">
@@ -235,28 +254,36 @@ export default function SearchForm() {
 
                     <div className="w-full lg:w-px h-px lg:h-24 bg-white/5"></div>
 
-                    <div className="flex flex-row lg:flex-col items-center lg:items-end gap-10 lg:gap-4 min-w-[200px]">
+                    <div className="grid grid-cols-2 lg:grid-cols-1 gap-8 lg:gap-4 min-w-[220px]">
                       <div className="text-right">
-                        <div className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-1">Prix Cash</div>
+                        <div className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-1">Prix Cash Public</div>
                         <div className="text-2xl font-black text-white tracking-tighter">{Math.round(flight.cashPrice).toLocaleString()} {flight.currency}</div>
                       </div>
                       <div className="text-right">
-                        <div className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-1">Miles Requis</div>
-                        <div className="text-2xl font-black text-blue-400 tracking-tighter">{flight.milesRequired.toLocaleString()} <span className="text-xs">PTS</span></div>
+                        <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Coût d'acquisition Miles</div>
+                        <div className="text-2xl font-black text-blue-400 tracking-tighter">{Math.round(totalMilesCost).toLocaleString()} {flight.currency}</div>
+                        <div className="text-[10px] text-white/40 font-bold">{flight.milesRequired.toLocaleString()} PTS requis</div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="mt-8 pt-6 border-t border-white/5 flex items-center justify-between">
-                    <div className="bg-navy-900/50 px-4 py-2 rounded-xl flex items-center gap-3">
-                      <span className="text-xs">💡</span>
-                      <p className="text-xs font-bold text-white/70">
-                        {isOptimized 
-                          ? `ÉCONOMIE RÉELLE : En utilisant vos miles, vous économisez ${Math.round(flight.cashPrice).toLocaleString()} ${flight.currency} !`
-                          : "CONSEIL : Le prix cash est très bas. Gardez vos miles pour un trajet plus cher."}
+                  <div className="mt-8 pt-6 border-t border-white/5 flex flex-wrap items-center justify-between gap-4">
+                    <div className={`px-4 py-2 rounded-xl flex items-center gap-3 ${isMilesBetter ? 'bg-green-500/10' : 'bg-orange-500/10'}`}>
+                      <span className="text-xs">{isMilesBetter ? '✅' : '⚠️'}</span>
+                      <p className={`text-xs font-bold ${isMilesBetter ? 'text-green-400' : 'text-orange-400'}`}>
+                        {isMilesBetter 
+                          ? `OPTIMISÉ : Les miles vous coûtent ${Math.round(savings).toLocaleString()} ${flight.currency} de moins que le cash.`
+                          : "CONSEIL : Le prix cash public est plus avantageux que le coût d'acquisition des miles."}
                       </p>
                     </div>
-                    <button className="bg-white text-navy-950 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-400 transition-colors">Réserver</button>
+                    <a 
+                      href={flight.bookingUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="bg-white text-navy-950 px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-400 hover:text-white transition-all transform active:scale-95"
+                    >
+                      Réserver mon vol
+                    </a>
                   </div>
                 </div>
               );
