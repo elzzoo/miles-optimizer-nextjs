@@ -215,8 +215,8 @@ export default function SearchForm() {
               )}
             </div>
           </div>
-          {apiData.flights.map((flight) => (
-            <FlightCard key={flight.id} flight={flight} analysis={flight.analysis} currency={apiData.currency} />
+                    {apiData.flights.map((flight, idx) => (
+              <FlightCard key={flight.id} flight={flight} rank={idx} />
           ))}
         </div>
       )}
