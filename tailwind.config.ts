@@ -19,6 +19,7 @@ const config: Config = {
         sans: ["Inter", "sans-serif"],
       },
     },
+      },
 };
 
 export default config;
