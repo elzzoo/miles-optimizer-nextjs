@@ -55,18 +55,18 @@ export default function PromosBanner() {
 
   return (
     <div className="glass-card p-6 rounded-2xl">
-      <h2 className="text-2xl font-bold mb-4">✨ Promotions en cours</h2>
+      <h2 className="text-2xl font-bold mb-4 text-white">✨ Promotions en cours</h2>
       <div className="space-y-4">
         {promos.map((promo, index) => (
           <div
             key={index}
-            className="bg-white/5 p-4 rounded-lg hover:bg-white/10 transition cursor-pointer"
+            className="bg-white/10 p-4 rounded-lg hover:bg-white/20 transition cursor-pointer border border-white/20"
           >
             <div className="flex justify-between items-start">
               <div>
-                <h3 className="font-semibold text-lg">{promo.airline}</h3>
-                <p className="text-navy-200 font-medium">{promo.title}</p>
-                <p className="text-sm text-navy-300 mt-1">{promo.description}</p>
+                <h3 className="font-semibold text-lg text-white">{promo.airline}</h3>
+                <p className="text-blue-200 font-medium text-base">{promo.title}</p>
+                <p className="text-sm text-gray-300 mt-1">{promo.description}</p>
               </div>
               <span className="text-2xl">✈️</span>
             </div>
