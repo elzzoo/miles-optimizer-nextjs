@@ -19,8 +19,6 @@ const config: Config = {
         sans: ["Inter", "sans-serif"],
       },
     },
-  },
-  plugins: [require("@tailwindcss/forms")],
 };
 
 export default config;
