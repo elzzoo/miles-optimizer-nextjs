@@ -203,12 +203,12 @@ export default function SearchForm() {
           <div className="grid md:grid-cols-3 gap-8">
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase tracking-widest text-navy-400 ml-4 block">Départ</label>
-              <input type="date" value={departureDate} onChange={(e) => setDepartureDate(e.target.value)} className="w-full bg-navy-900/50 border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-navy-500 appearance-none" />
+              <input type="date" value={departureDate} onChange={(e) => setDepartureDate(e.target.value)} className="w-full bg-navy-900/50 border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-navy-500 appearance-none" required />
             </div>
             {tripType === 'round-trip' && (
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase tracking-widest text-navy-400 ml-4 block">Retour</label>
-                <input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} className="w-full bg-navy-900/50 border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-navy-500 appearance-none" />
+                <input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} className="w-full bg-navy-900/50 border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-navy-500 appearance-none" required />
               </div>
             )}
             <div className={`space-y-2 ${tripType === 'one-way' ? 'md:col-span-2' : ''}`}>
@@ -266,50 +266,45 @@ export default function SearchForm() {
                           <div className="text-3xl font-black text-white tracking-tighter">{flight.departureTime}</div>
                           <div className="text-[10px] font-black text-navy-400 uppercase tracking-widest mt-1">{origin.split(' - ')[0]}</div>
                         </div>
-                        <div className="flex-1 px-8 relative\"><div className=\"h-px bg-white/10 w-full\"></div></div>
-                        <div className=\"text-center lg:text-right\">
-                          <div className=\"text-3xl font-black text-white tracking-tighter\">{flight.departureTime}</div>
-                          <div className=\"text-[10px] font-black text-navy-400 uppercase tracking-widest mt-1\">{origin.split(' - ')[0]}</div>
-                        </div>
-                        <div className=\"flex-1 px-8 relative\"><div className=\"h-px bg-white/10 w-full\"></div></div>
-                        <div className=\"text-center lg:text-right\">
-                          <div className=\"text-3xl font-black text-white tracking-tighter\">{flight.arrivalTime}</div>
-                          <div className=\"text-[10px] font-black text-navy-400 uppercase tracking-widest mt-1\">{destination.split(' - ')[0]}</div>
+                        <div className="flex-1 px-8 relative"><div className="h-px bg-white/10 w-full"></div></div>
+                        <div className="text-center lg:text-right">
+                          <div className="text-3xl font-black text-white tracking-tighter">{flight.arrivalTime}</div>
+                          <div className="text-[10px] font-black text-navy-400 uppercase tracking-widest mt-1">{destination.split(' - ')[0]}</div>
                         </div>
                       </div>
                     </div>
 
-                    <div className=\"w-full lg:w-px h-px lg:h-24 bg-white/5\"></div>
+                    <div className="w-full lg:w-px h-px lg:h-24 bg-white/5"></div>
 
-                    <div className=\"grid grid-cols-2 lg:grid-cols-1 gap-8 lg:gap-4 min-w-[220px]\">
-                      <div className=\"text-right\">
-                        <div className=\"text-[10px] font-black text-white/30 uppercase tracking-widest mb-1\">Prix Cash Public</div>
-                        <div className=\"text-2xl font-black text-white tracking-tighter\">{Math.round(flight.cashPrice).toLocaleString()} {flight.currency}</div>
+                    <div className="grid grid-cols-2 lg:grid-cols-1 gap-8 lg:gap-4 min-w-[220px]">
+                      <div className="text-right">
+                        <div className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-1">Prix Cash Public</div>
+                        <div className="text-2xl font-black text-white tracking-tighter">{Math.round(flight.cashPrice).toLocaleString()} {flight.currency}</div>
                       </div>
-                      <div className=\"text-right\">
-                        <div className=\"text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1\">Coût d acquisition Miles</div>
-                        <div className=\"text-2xl font-black text-blue-400 tracking-tighter\">{Math.round(totalMilesCost).toLocaleString()} {flight.currency}</div>
-                        <div className=\"text-[10px] text-white/40 font-bold\">
+                      <div className="text-right">
+                        <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Coût d'acquisition Miles</div>
+                        <div className="text-2xl font-black text-blue-400 tracking-tighter">{Math.round(totalMilesCost).toLocaleString()} {flight.currency}</div>
+                        <div className="text-[10px] text-white/40 font-bold">
                           {flight.milesRequired.toLocaleString()} PTS @ {flight.milesPriceUsed.toFixed(currency === 'XOF' ? 2 : 4)} / pt
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className=\"mt-8 pt-6 border-t border-white/5 flex flex-wrap items-center justify-between gap-4\">
+                  <div className="mt-8 pt-6 border-t border-white/5 flex flex-wrap items-center justify-between gap-4">
                     <div className={`px-4 py-2 rounded-xl flex items-center gap-3 ${isMilesBetter ? 'bg-green-500/10' : 'bg-orange-500/10'}`}>
-                      <span className=\"text-xs\">{isMilesBetter ? '✅' : '⚠️'}</span>
+                      <span className="text-xs">{isMilesBetter ? '✅' : '⚠️'}</span>
                       <p className={`text-xs font-bold ${isMilesBetter ? 'text-green-400' : 'text-orange-400'}`}>
                         {isMilesBetter 
                           ? `OPTIMISÉ : Les miles vous coûtent ${Math.round(savings).toLocaleString()} ${flight.currency} de moins que le cash.`
-                          : \"CONSEIL : Le prix cash public est plus avantageux que le coût d acquisition des miles.\"}
+                          : "CONSEIL : Le prix cash public est plus avantageux que le coût d'acquisition des miles."}
                       </p>
                     </div>
                     <a 
                       href={flight.bookingUrl} 
-                      target=\"_blank\" 
-                      rel=\"noopener noreferrer\"
-                      className=\"bg-white text-navy-950 px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-400 hover:text-white transition-all transform active:scale-95\"
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="bg-white text-navy-950 px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-400 hover:text-white transition-all transform active:scale-95"
                     >
                       Réserver mon vol
                     </a>
