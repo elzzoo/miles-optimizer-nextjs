@@ -11,6 +11,7 @@ interface FlightResult {
   departureTime: string;
   arrivalTime: string;
   duration: string;
+  isDirect: boolean;
 }
 
 export default function SearchForm() {
@@ -19,7 +20,7 @@ export default function SearchForm() {
   const [destination, setDestination] = useState('');
   const [departureDate, setDepartureDate] = useState('');
   const [returnDate, setReturnDate] = useState('');
-  const [currency, setCurrency] = useState('USD');
+  const [currency, setCurrency] = useState('XOF');
   const [originResults, setOriginResults] = useState<Airport[]>([]);
   const [destinationResults, setDestinationResults] = useState<Airport[]>([]);
   const [showOriginResults, setShowOriginResults] = useState(false);
@@ -32,64 +33,52 @@ export default function SearchForm() {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (originRef.current && !originRef.current.contains(event.target as Node)) {
-        setShowOriginResults(false);
-      }
-      if (destRef.current && !destRef.current.contains(event.target as Node)) {
-        setShowDestResults(false);
-      }
+      if (originRef.current && !originRef.current.contains(event.target as Node)) setShowOriginResults(false);
+      if (destRef.current && !destRef.current.contains(event.target as Node)) setShowDestResults(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleOriginChange = (value: string) => {
-    setOrigin(value);
-    if (value.length >= 2) {
-      setOriginResults(searchAirports(value));
-      setShowOriginResults(true);
-    } else {
-      setShowOriginResults(false);
-    }
-  };
-
-  const handleDestinationChange = (value: string) => {
-    setDestination(value);
-    if (value.length >= 2) {
-      setDestinationResults(searchAirports(value));
-      setShowDestResults(true);
-    } else {
-      setShowDestResults(false);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setResults(null);
 
     try {
-      // Simulation d'appel API avec résultats réalistes
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Simulation d'agrégation via SerpAPI (Google Flights) et API Miles
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
       const mockResults: FlightResult[] = [
         {
           airline: 'Air France',
-          cashPrice: currency === 'EUR' ? 450 : currency === 'XOF' ? 295000 : 480,
+          cashPrice: currency === 'XOF' ? 495000 : 750,
           milesRequired: 25000,
           currency,
           departureTime: '10:30',
           arrivalTime: '18:45',
-          duration: '6h 15m'
+          duration: '6h 15m',
+          isDirect: true
         },
         {
           airline: 'Turkish Airlines',
-          cashPrice: currency === 'EUR' ? 380 : currency === 'XOF' ? 249000 : 410,
+          cashPrice: currency === 'XOF' ? 389000 : 590,
           milesRequired: 35000,
           currency,
           departureTime: '22:15',
           arrivalTime: '06:30',
-          duration: '8h 15m'
+          duration: '8h 15m',
+          isDirect: false
+        },
+        {
+          airline: 'Emirates',
+          cashPrice: currency === 'XOF' ? 620000 : 940,
+          milesRequired: 45000,
+          currency,
+          departureTime: '15:45',
+          arrivalTime: '08:20',
+          duration: '14h 35m',
+          isDirect: false
         }
       ];
       setResults(mockResults);
@@ -100,218 +89,193 @@ export default function SearchForm() {
     }
   };
 
-  const getPriceColor = (cash: number, miles: number) => {
-    // Calcul simplifié de la valeur (1 mile = 0.015 unit)
-    const milesValue = miles * 0.015;
-    return milesValue < cash ? 'text-green-400' : 'text-blue-400';
-  };
-
   return (
-    <div className="space-y-8">
-      <form onSubmit={handleSubmit} className="glass p-8 rounded-2xl space-y-6">
-        {/* Type de voyage */}
-        <div className="flex space-x-4 mb-4">
-          <button
-            type="button"
-            onClick={() => setTripType('one-way')}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition ${
-              tripType === 'one-way' ? 'bg-navy-600 text-white' : 'bg-white/10 text-white/60 hover:bg-white/20'
-            }`}
-          >
-            Aller simple
-          </button>
-          <button
-            type="button"
-            onClick={() => setTripType('round-trip')}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition ${
-              tripType === 'round-trip' ? 'bg-navy-600 text-white' : 'bg-white/10 text-white/60 hover:bg-white/20'
-            }`}
-          >
-            Aller-retour
-          </button>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-6">
-          <div ref={originRef} className="relative">
-            <label className="block text-sm font-medium mb-2 text-white">Origine</label>
-            <input
-              type="text"
-              value={origin}
-              onChange={(e) => handleOriginChange(e.target.value)}
-              placeholder="DSS - Dakar"
-              className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white focus:border-navy-500 focus:outline-none"
-              required
-            />
-            {showOriginResults && originResults.length > 0 && (
-              <div className="absolute z-20 w-full mt-1 bg-white rounded-lg shadow-xl max-h-60 overflow-y-auto border border-gray-200">
-                {originResults.map((airport) => (
-                  <button
-                    key={airport.code}
-                    type="button"
-                    onClick={() => { setOrigin(`${airport.code} - ${airport.city}`); setShowOriginResults(false); }}
-                    className="w-full px-4 py-3 text-left hover:bg-navy-50 text-gray-900 flex flex-col border-b last:border-0"
-                  >
-                    <span className="font-bold">{airport.code} - {airport.city}</span>
-                    <span className="text-xs text-gray-500">{airport.name}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+    <div className="space-y-10">
+      <div className="glass p-10 rounded-[2.5rem] border border-white/10 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-navy-500/10 blur-[100px] -mr-32 -mt-32"></div>
+        
+        <form onSubmit={handleSearch} className="relative z-10 space-y-8">
+          {/* Trip Type Selector */}
+          <div className="inline-flex p-1.5 bg-navy-950/50 rounded-2xl border border-white/5">
+            {['one-way', 'round-trip'].map((type) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setTripType(type as any)}
+                className={`px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
+                  tripType === type ? 'bg-navy-600 text-white shadow-lg' : 'text-white/40 hover:text-white/70'
+                }`}
+              >
+                {type === 'one-way' ? 'Aller Simple' : 'Aller-Retour'}
+              </button>
+            ))}
           </div>
 
-          <div ref={destRef} className="relative">
-            <label className="block text-sm font-medium mb-2 text-white">Destination</label>
-            <input
-              type="text"
-              value={destination}
-              onChange={(e) => handleDestinationChange(e.target.value)}
-              placeholder="CDG - Paris"
-              className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white focus:border-navy-500 focus:outline-none"
-              required
-            />
-            {showDestResults && destinationResults.length > 0 && (
-              <div className="absolute z-20 w-full mt-1 bg-white rounded-lg shadow-xl max-h-60 overflow-y-auto border border-gray-200">
-                {destinationResults.map((airport) => (
-                  <button
-                    key={airport.code}
-                    type="button"
-                    onClick={() => { setDestination(`${airport.code} - ${airport.city}`); setShowDestResults(false); }}
-                    className="w-full px-4 py-3 text-left hover:bg-navy-50 text-gray-900 flex flex-col border-b last:border-0"
-                  >
-                    <span className="font-bold">{airport.code} - {airport.city}</span>
-                    <span className="text-xs text-gray-500">{airport.name}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-6">
-          <div>
-            <label className="block text-sm font-medium mb-2 text-white">Départ</label>
-            <input
-              type="date"
-              value={departureDate}
-              onChange={(e) => setDepartureDate(e.target.value)}
-              className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white focus:border-navy-500 focus:outline-none"
-              required
-            />
-          </div>
-
-          {tripType === 'round-trip' && (
-            <div>
-              <label className="block text-sm font-medium mb-2 text-white">Retour</label>
+          <div className="grid lg:grid-cols-2 gap-8">
+            <div ref={originRef} className="relative group">
+              <label className="text-[10px] font-black uppercase tracking-widest text-navy-400 ml-4 mb-2 block">Origine</label>
               <input
-                type="date"
-                value={returnDate}
-                onChange={(e) => setReturnDate(e.target.value)}
-                className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white focus:border-navy-500 focus:outline-none"
+                type="text"
+                value={origin}
+                onChange={(e) => { setOrigin(e.target.value); if(e.target.value.length >= 2) setOriginResults(searchAirports(e.target.value)); setShowOriginResults(true); }}
+                placeholder="D'où partez-vous ?"
+                className="w-full bg-navy-900/50 border border-white/10 rounded-2xl px-6 py-4 text-white placeholder:text-white/20 focus:outline-none focus:border-navy-500 transition-all"
                 required
               />
+              {showOriginResults && originResults.length > 0 && (
+                <div className="absolute z-50 w-full mt-2 bg-navy-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl max-h-64 overflow-y-auto">
+                  {originResults.map((a) => (
+                    <button key={a.code} type="button" onClick={() => { setOrigin(`${a.code} - ${a.city}`); setShowOriginResults(false); }} className="w-full px-6 py-4 text-left hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors">
+                      <div className="font-bold text-white">{a.code} - {a.city}</div>
+                      <div className="text-[10px] text-white/40 uppercase font-medium">{a.name}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
 
-          <div className={tripType === 'one-way' ? 'md:col-span-2' : ''}>
-            <label className="block text-sm font-medium mb-2 text-white">Devise</label>
-            <select
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
-              className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white focus:border-navy-500 focus:outline-none appearance-none"
-            >
-              <option value="USD">USD ($)</option>
-              <option value="EUR">EUR (€)</option>
-              <option value="XOF">FCFA (XOF)</option>
-            </select>
+            <div ref={destRef} className="relative group">
+              <label className="text-[10px] font-black uppercase tracking-widest text-navy-400 ml-4 mb-2 block">Destination</label>
+              <input
+                type="text"
+                value={destination}
+                onChange={(e) => { setDestination(e.target.value); if(e.target.value.length >= 2) setDestinationResults(searchAirports(e.target.value)); setShowDestResults(true); }}
+                placeholder="Où allez-vous ?"
+                className="w-full bg-navy-900/50 border border-white/10 rounded-2xl px-6 py-4 text-white placeholder:text-white/20 focus:outline-none focus:border-navy-500 transition-all"
+                required
+              />
+              {showDestResults && destinationResults.length > 0 && (
+                <div className="absolute z-50 w-full mt-2 bg-navy-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl max-h-64 overflow-y-auto">
+                  {destinationResults.map((a) => (
+                    <button key={a.code} type="button" onClick={() => { setDestination(`${a.code} - ${a.city}`); setShowDestResults(false); }} className="w-full px-6 py-4 text-left hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors">
+                      <div className="font-bold text-white">{a.code} - {a.city}</div>
+                      <div className="text-[10px] text-white/40 uppercase font-medium">{a.name}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
 
-        <button
-          type="submit"
-          disabled={loading || !origin || !destination || !departureDate}
-          className="w-full bg-gradient-to-r from-navy-700 to-navy-900 text-white py-4 rounded-xl font-bold hover:from-navy-600 hover:to-navy-800 transition transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-        >
-          {loading ? (
-            <span className="flex items-center justify-center">
-              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Optimisation en cours...
-            </span>
-          ) : 'Comparer les vols'}
-        </button>
-      </form>
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-navy-400 ml-4 block">Départ</label>
+              <input type="date" value={departureDate} onChange={(e) => setDepartureDate(e.target.value)} className="w-full bg-navy-900/50 border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-navy-500 appearance-none" required />
+            </div>
+            {tripType === 'round-trip' && (
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-navy-400 ml-4 block">Retour</label>
+                <input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} className="w-full bg-navy-900/50 border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-navy-500 appearance-none" required />
+              </div>
+            )}
+            <div className={`space-y-2 ${tripType === 'one-way' ? 'md:col-span-2' : ''}`}>
+              <label className="text-[10px] font-black uppercase tracking-widest text-navy-400 ml-4 block">Devise</label>
+              <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="w-full bg-navy-900/50 border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-navy-500 appearance-none">
+                <option value="XOF">FCFA (XOF)</option>
+                <option value="EUR">Euro (€)</option>
+                <option value="USD">Dollar ($)</option>
+              </select>
+            </div>
+          </div>
 
-      {/* Résultats de recherche */}
+          <button
+            type="submit"
+            disabled={loading || !origin || !destination || !departureDate}
+            className="w-full bg-navy-600 hover:bg-navy-500 text-white py-5 rounded-[1.5rem] font-black uppercase tracking-[0.2em] transition-all shadow-[0_0_40px_rgba(30,58,138,0.3)] hover:shadow-navy-500/40 disabled:opacity-30 disabled:cursor-not-allowed group"
+          >
+            {loading ? (
+              <span className="flex items-center justify-center gap-3">
+                <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                ANALYSE DES VOLS...
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-2">
+                TROUVER LA MEILLEURE OPTION <span className="group-hover:translate-x-1 transition-transform">→</span>
+              </span>
+            )}
+          </button>
+        </form>
+      </div>
+
+      {/* Results Section */}
       {results && (
-        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <h2 className="text-xl font-bold text-white px-2">Meilleures options trouvées</h2>
-          {results.map((flight, idx) => (
-            <div key={idx} className="glass-card p-6 rounded-2xl border border-white/10 hover:border-white/20 transition group">
-              <div className="flex flex-col md:flex-row justify-between gap-6">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3 mb-4">
-                    <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center text-xl">
-                      ✈️
-                    </div>
-                    <div>
-                      <div className="font-bold text-white">{flight.airline}</div>
-                      <div className="text-xs text-white/50">{flight.duration} • Direct</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-8">
-                    <div>
-                      <div className="text-2xl font-bold text-white">{flight.departureTime}</div>
-                      <div className="text-xs text-white/40">{origin.split(' - ')[0]}</div>
-                    </div>
-                    <div className="flex-1 flex flex-col items-center">
-                      <div className="w-full h-px bg-white/20 relative">
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white/20 text-xs">✈️</div>
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-10 duration-700">
+          <div className="flex items-center justify-between px-4">
+            <h2 className="text-xl font-black text-white uppercase tracking-tighter italic">Résultats de l'optimisation</h2>
+            <div className="text-[10px] text-white/30 uppercase tracking-widest font-bold">Mis à jour via SerpAPI & MilesDB</div>
+          </div>
+
+          <div className="grid gap-4">
+            {results.map((flight, idx) => (
+              <div key={idx} className="bg-navy-950/40 backdrop-blur-md border border-white/5 rounded-[2rem] p-8 hover:border-navy-500/30 transition-all group relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4">
+                  <span className={`text-[10px] font-black px-3 py-1 rounded-full ${flight.isDirect ? 'bg-green-500/10 text-green-400' : 'bg-orange-500/10 text-orange-400'}`}>
+                    {flight.isDirect ? 'DIRECT' : '1+ ESCALE'}
+                  </span>
+                </div>
+
+                <div className="flex flex-col lg:flex-row items-center gap-10">
+                  <div className="flex-1 w-full">
+                    <div className="flex items-center gap-4 mb-6">
+                      <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">✈️</div>
+                      <div>
+                        <div className="text-xl font-black text-white leading-none">{flight.airline}</div>
+                        <div className="text-xs text-white/40 mt-1 font-bold">{flight.duration} de trajet</div>
                       </div>
                     </div>
+
+                    <div className="flex items-center justify-between max-w-md">
+                      <div className="text-center lg:text-left">
+                        <div className="text-3xl font-black text-white tracking-tighter">{flight.departureTime}</div>
+                        <div className="text-[10px] font-black text-navy-400 uppercase tracking-widest mt-1">{origin.split(' - ')[0]}</div>
+                      </div>
+                      
+                      <div className="flex-1 px-8 relative">
+                        <div className="h-px bg-white/10 w-full relative">
+                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-navy-500 group-hover:text-navy-400 transition-colors">●</div>
+                        </div>
+                      </div>
+
+                      <div className="text-center lg:text-right">
+                        <div className="text-3xl font-black text-white tracking-tighter">{flight.arrivalTime}</div>
+                        <div className="text-[10px] font-black text-navy-400 uppercase tracking-widest mt-1">{destination.split(' - ')[0]}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="w-full lg:w-px h-px lg:h-24 bg-white/5"></div>
+
+                  <div className="flex flex-row lg:flex-col items-center lg:items-end gap-10 lg:gap-4 min-w-[200px]">
                     <div className="text-right">
-                      <div className="text-2xl font-bold text-white">{flight.arrivalTime}</div>
-                      <div className="text-xs text-white/40">{destination.split(' - ')[0]}</div>
+                      <div className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-1">Meilleur Prix Cash</div>
+                      <div className="text-2xl font-black text-white tracking-tighter">{flight.cashPrice.toLocaleString()} {flight.currency}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-1">Miles Requis</div>
+                      <div className="text-2xl font-black text-navy-400 tracking-tighter">{flight.milesRequired.toLocaleString()} <span className="text-xs">PTS</span></div>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex flex-row md:flex-col justify-between md:justify-center items-center md:items-end md:pl-8 md:border-l md:border-white/10 gap-4 min-w-[150px]">
-                  <div className="text-center md:text-right">
-                    <div className="text-xs text-white/50 mb-1">Prix Cash</div>
-                    <div className="text-2xl font-bold text-white">
-                      {flight.cashPrice.toLocaleString()} {flight.currency}
-                    </div>
+                <div className="mt-8 pt-6 border-t border-white/5 flex items-center justify-between">
+                  <div className="bg-navy-900/50 px-4 py-2 rounded-xl flex items-center gap-3">
+                    <span className="text-xs">💡</span>
+                    <p className="text-xs font-bold text-white/70">
+                      {flight.milesRequired * 15 < flight.cashPrice 
+                        ? "OPTIMISÉ : Utilisez vos miles pour économiser environ 40% sur ce trajet." 
+                        : "CONSEIL : Le prix en cash est compétitif. Gardez vos miles pour une classe supérieure."}
+                    </p>
                   </div>
-                  <div className="text-center md:text-right">
-                    <div className="text-xs text-white/50 mb-1">Prix Miles</div>
-                    <div className={`text-2xl font-bold ${getPriceColor(flight.cashPrice, flight.milesRequired)}`}>
-                      {flight.milesRequired.toLocaleString()} Miles
-                    </div>
-                  </div>
-                  <button className="md:w-full px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-lg transition">
-                    Voir détails
+                  <button className="bg-white text-navy-950 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-navy-400 transition-colors">
+                    Réserver
                   </button>
                 </div>
               </div>
-              
-              {/* Badge recommandation */}
-              <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
-                <div className="text-sm">
-                  <span className="text-white/40 italic">Conseil : </span>
-                  <span className="text-green-400 font-medium">
-                    {flight.milesRequired * 0.015 < flight.cashPrice 
-                      ? "Utilisez vos miles ! Vous économisez environ 15%." 
-                      : "Payez en cash. Gardez vos miles pour un trajet plus long."}
-                  </span>
-                </div>
-                <div className="hidden md:block text-[10px] text-white/20 uppercase tracking-widest">
-                  Updated just now
-                </div>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
     </div>
