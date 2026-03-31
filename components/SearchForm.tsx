@@ -15,7 +15,24 @@ interface FlightResult {
   isDirect: boolean;
   class: TravelClass;
   bookingUrl: string;
+  milesPriceUsed: number; // Prix par mile utilisé pour le calcul
+  isPromoApplied: boolean;
 }
+
+// Base de données des prix d'acquisition des miles (Source: Sites officiels)
+const MILES_PRICES: Record<string, { base: number, promo?: number, currency: string }> = {
+  'Air France': { base: 0.027, promo: 0.0169, currency: 'EUR' },
+  'Turkish Airlines': { base: 0.030, currency: 'USD' },
+  'Emirates': { base: 0.030, promo: 0.021, currency: 'USD' },
+  'Qatar Airways': { base: 0.035, promo: 0.022, currency: 'USD' },
+};
+
+const EXCHANGE_RATES: Record<string, number> = {
+  'EUR_XOF': 655.957,
+  'USD_XOF': 610.0,
+  'EUR_USD': 1.08,
+  'USD_EUR': 0.92,
+};
 
 export default function SearchForm() {
   const [tripType, setTripType] = useState<'one-way' | 'round-trip'>('one-way');
@@ -25,7 +42,7 @@ export default function SearchForm() {
   const [departureDate, setDepartureDate] = useState('');
   const [returnDate, setReturnDate] = useState('');
   const [currency, setCurrency] = useState('XOF');
-  const [milesPurchasePrice, setMilesPurchasePrice] = useState<number>(currency === 'XOF' ? 15 : 0.025); // Prix d'acquisition par mile
+  
   const [originResults, setOriginResults] = useState<Airport[]>([]);
   const [destinationResults, setDestinationResults] = useState<Airport[]>([]);
   const [showOriginResults, setShowOriginResults] = useState(false);
@@ -45,42 +62,49 @@ export default function SearchForm() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const convertToTargetCurrency = (amount: number, from: string, to: string) => {
+    if (from === to) return amount;
+    const key = `${from}_${to}`;
+    if (EXCHANGE_RATES[key]) return amount * EXCHANGE_RATES[key];
+    // Invert search
+    const invKey = `${to}_${from}`;
+    if (EXCHANGE_RATES[invKey]) return amount / EXCHANGE_RATES[invKey];
+    return amount; // Fallback
+  };
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setResults(null);
+
     try {
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       const multiplier = travelClass === 'business' ? 2.5 : travelClass === 'first' ? 5 : 1;
       const milesMult = travelClass === 'business' ? 3 : travelClass === 'first' ? 6 : 1;
 
-      const mockResults: FlightResult[] = [
-        {
-          airline: 'Air France',
-          cashPrice: (currency === 'XOF' ? 495000 : 750) * multiplier,
-          milesRequired: 25000 * milesMult,
+      const airlines = ['Air France', 'Turkish Airlines'];
+      const mockResults: FlightResult[] = airlines.map(name => {
+        const pricing = MILES_PRICES[name] || { base: 0.03, currency: 'USD' };
+        const pricePerMile = pricing.promo || pricing.base;
+        const milesPriceInTarget = convertToTargetCurrency(pricePerMile, pricing.currency, currency);
+
+        return {
+          airline: name,
+          cashPrice: (name === 'Air France' ? (currency === 'XOF' ? 495000 : 750) : (currency === 'XOF' ? 389000 : 590)) * multiplier,
+          milesRequired: (name === 'Air France' ? 25000 : 35000) * milesMult,
           currency,
-          departureTime: '10:30',
-          arrivalTime: '18:45',
-          duration: '6h 15m',
-          isDirect: true,
+          departureTime: name === 'Air France' ? '10:30' : '22:15',
+          arrivalTime: name === 'Air France' ? '18:45' : '06:30',
+          duration: name === 'Air France' ? '6h 15m' : '8h 15m',
+          isDirect: name === 'Air France',
           class: travelClass,
-          bookingUrl: 'https://www.airfrance.sn'
-        },
-        {
-          airline: 'Turkish Airlines',
-          cashPrice: (currency === 'XOF' ? 389000 : 590) * multiplier,
-          milesRequired: 35000 * milesMult,
-          currency,
-          departureTime: '22:15',
-          arrivalTime: '06:30',
-          duration: '8h 15m',
-          isDirect: false,
-          class: travelClass,
-          bookingUrl: 'https://www.turkishairlines.com'
-        }
-      ];
+          bookingUrl: name === 'Air France' ? 'https://www.airfrance.sn' : 'https://www.turkishairlines.com',
+          milesPriceUsed: milesPriceInTarget,
+          isPromoApplied: !!pricing.promo
+        };
+      });
+
       setResults(mockResults);
     } catch (error) {
       console.error('Search error:', error);
@@ -109,7 +133,6 @@ export default function SearchForm() {
                   </button>
                 ))}
               </div>
-
               <div className="inline-flex p-1.5 bg-navy-950/50 rounded-2xl border border-white/5">
                 {(['economy', 'business', 'first'] as TravelClass[]).map((cls) => (
                   <button
@@ -125,17 +148,10 @@ export default function SearchForm() {
                 ))}
               </div>
             </div>
-
-            <div className="bg-navy-950/50 p-3 rounded-2xl border border-white/5 flex items-center gap-4">
-              <label className="text-[10px] font-black uppercase tracking-widest text-navy-400">Coût d'acquisition (1 Mile)</label>
-              <input 
-                type="number" 
-                step="0.001"
-                value={milesPurchasePrice} 
-                onChange={(e) => setMilesPurchasePrice(parseFloat(e.target.value))}
-                className="bg-navy-900/50 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white w-24 focus:outline-none focus:border-blue-500"
-              />
-              <span className="text-[10px] font-bold text-white/40">{currency}</span>
+            
+            <div className="bg-navy-950/50 px-4 py-2 rounded-xl border border-white/5">
+              <span className="text-[10px] font-black uppercase tracking-widest text-navy-400">Tarification Automatisée</span>
+              <div className="text-[10px] text-white/40 font-medium">Prix officiels + Promos incluses</div>
             </div>
           </div>
 
@@ -197,7 +213,7 @@ export default function SearchForm() {
             )}
             <div className={`space-y-2 ${tripType === 'one-way' ? 'md:col-span-2' : ''}`}>
               <label className="text-[10px] font-black uppercase tracking-widest text-navy-400 ml-4 block">Devise</label>
-              <select value={currency} onChange={(e) => { setCurrency(e.target.value); setMilesPurchasePrice(e.target.value === 'XOF' ? 15 : 0.025); }} className="w-full bg-navy-900/50 border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-navy-500 appearance-none">
+              <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="w-full bg-navy-900/50 border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-navy-500 appearance-none">
                 <option value="XOF">FCFA (XOF)</option>
                 <option value="EUR">Euro (€)</option>
                 <option value="USD">Dollar ($)</option>
@@ -224,7 +240,7 @@ export default function SearchForm() {
 
           <div className="grid gap-4">
             {results.map((flight, idx) => {
-              const totalMilesCost = flight.milesRequired * milesPurchasePrice;
+              const totalMilesCost = flight.milesRequired * flight.milesPriceUsed;
               const isMilesBetter = totalMilesCost < flight.cashPrice;
               const savings = flight.cashPrice - totalMilesCost;
 
@@ -238,7 +254,13 @@ export default function SearchForm() {
                           <div className="text-xl font-black text-white leading-none">{flight.airline}</div>
                           <div className="text-xs text-white/40 mt-1 font-bold">{flight.duration} • {flight.isDirect ? 'Direct' : 'Escale'}</div>
                         </div>
+                        {flight.isPromoApplied && (
+                          <div className="ml-auto bg-blue-500/20 text-blue-400 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-blue-500/20">
+                            PROMO MILES
+                          </div>
+                        )}
                       </div>
+
                       <div className="flex items-center justify-between max-w-md">
                         <div className="text-center lg:text-left">
                           <div className="text-3xl font-black text-white tracking-tighter">{flight.departureTime}</div>
@@ -262,7 +284,9 @@ export default function SearchForm() {
                       <div className="text-right">
                         <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Coût d'acquisition Miles</div>
                         <div className="text-2xl font-black text-blue-400 tracking-tighter">{Math.round(totalMilesCost).toLocaleString()} {flight.currency}</div>
-                        <div className="text-[10px] text-white/40 font-bold">{flight.milesRequired.toLocaleString()} PTS requis</div>
+                        <div className="text-[10px] text-white/40 font-bold">
+                          {flight.milesRequired.toLocaleString()} PTS @ {flight.milesPriceUsed.toFixed(currency === 'XOF' ? 2 : 4)} / pt
+                        </div>
                       </div>
                     </div>
                   </div>
