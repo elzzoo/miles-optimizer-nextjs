@@ -180,7 +180,7 @@ export default function SearchForm() {
 
           <button
             type="submit"
-            disabled={loading || !origin || !destination || !departureDate}
+                disabled={loading || !origin || !destination}          }
             className="w-full bg-navy-600 hover:bg-navy-500 text-white py-5 rounded-[1.5rem] font-black uppercase tracking-[0.2em] transition-all shadow-[0_0_40px_rgba(30,58,138,0.3)] hover:shadow-navy-500/40 disabled:opacity-30 disabled:cursor-not-allowed group"
           >
             {loading ? (
