@@ -1,234 +1,143 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server'
+import { getMockFlights, MILES_REQUIREMENTS, type Flight } from '@/lib/flights'
+import { analyzeMiles } from '@/lib/miles'
+import { cacheGet, cacheSet } from '@/lib/redis'
 
-const MILES_PRICES: Record<string, { base: number; promo?: number; currency: string }> = {
-  'Air France': { base: 0.027, promo: 0.0169, currency: 'EUR' },
-  'Turkish Airlines': { base: 0.030, currency: 'USD' },
-  'Emirates': { base: 0.030, promo: 0.021, currency: 'USD' },
-  'Qatar Airways': { base: 0.035, promo: 0.022, currency: 'USD' },
-};
+const CACHE_TTL = 3600  // 1h
+const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '20')
+const RATE_LIMIT_WINDOW = parseInt(process.env.RATE_LIMIT_WINDOW || '60000')
 
-const EXCHANGE_RATES: Record<string, number> = {
-  EUR_XOF: 655.957,
-  USD_XOF: 610.0,
-  EUR_USD: 1.08,
-  USD_EUR: 0.92,
-  XOF_EUR: 1 / 655.957,
-  XOF_USD: 1 / 610.0,
-};
+// Rate limit store in-memory
+const rateStore = new Map<string, { count: number; reset: number }>()
 
-function convertCurrency(amount: number, from: string, to: string): number {
-  if (from === to) return amount;
-  const key = `${from}_${to}`;
-  if (EXCHANGE_RATES[key]) return amount * EXCHANGE_RATES[key];
-  const invKey = `${to}_${from}`;
-  if (EXCHANGE_RATES[invKey]) return amount / EXCHANGE_RATES[invKey];
-  return amount;
+function checkRate(ip: string): boolean {
+  const now = Date.now()
+  const entry = rateStore.get(ip)
+  if (!entry || now > entry.reset) {
+    rateStore.set(ip, { count: 1, reset: now + RATE_LIMIT_WINDOW })
+    return true
+  }
+  if (entry.count >= RATE_LIMIT_MAX) return false
+  entry.count++
+  return true
 }
 
-async function fetchTravelpayoutsFlights(
-  origin: string,
-  destination: string,
-  departureDate: string,
-  returnDate: string | null,
-  travelClass: string,
+interface TequilaFlight {
+  id: string
+  price: number
   currency: string
-) {
-  const token = process.env.TRAVELPAYOUTS_TOKEN || process.env.NEXT_PUBLIC_TRAVELPAYOUTS_TOKEN;
-  if (!token) throw new Error('Missing Travelpayouts API token');
-
-  // Travelpayouts Aviasales prices API
-  const originCode = origin.split(' - ')[0]?.trim() || origin;
-  const destCode = destination.split(' - ')[0]?.trim() || destination;
-
-  // Use the cheapest tickets API endpoint
-  const params = new URLSearchParams({
-    origin: originCode,
-    destination: destCode,
-    currency: currency === 'XOF' ? 'EUR' : currency.toLowerCase(),
-    token,
-    limit: '10',
-    one_way: returnDate ? '0' : '1',
-  });
-
-  if (departureDate) {
-    // Format: YYYY-MM
-    const dateParts = departureDate.split('-');
-    if (dateParts.length === 3) {
-      params.set('depart_date', `${dateParts[0]}-${dateParts[1]}`);
-    }
-  }
-
-  if (returnDate) {
-    const dateParts = returnDate.split('-');
-    if (dateParts.length === 3) {
-      params.set('return_date', `${dateParts[0]}-${dateParts[1]}`);
-    }
-  }
-
-  const url = `https://api.travelpayouts.com/v1/prices/cheap?${params.toString()}`;
-
-  const response = await fetch(url, {
-    headers: {
-      'X-Access-Token': token,
-      'Accept-Encoding': 'gzip, deflate, sdch',
-    },
-    next: { revalidate: 3600 }, // cache for 1 hour
-  });
-
-  if (!response.ok) {
-    throw new Error(`Travelpayouts API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return data;
+  airlines: string[]
+  local_departure: string
+  local_arrival: string
+  duration: { total: number }
+  route: unknown[]
+  cityFrom: string
+  cityTo: string
 }
 
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const origin = searchParams.get('origin') || '';
-  const destination = searchParams.get('destination') || '';
-  const departureDate = searchParams.get('departureDate') || '';
-  const returnDate = searchParams.get('returnDate') || null;
-  const travelClass = searchParams.get('class') || 'economy';
-  const currency = searchParams.get('currency') || 'XOF';
-
-  if (!origin || !destination) {
-    return NextResponse.json({ error: 'Origin and destination required' }, { status: 400 });
-  }
+async function fetchTequila(
+  from: string, to: string, date: string,
+  cabinClass: string, returnDate?: string
+): Promise<TequilaFlight[] | null> {
+  const apiKey = process.env.TEQUILA_API_KEY
+  if (!apiKey) return null
 
   try {
-    const apiData = await fetchTravelpayoutsFlights(
-      origin,
-      destination,
-      departureDate,
-      returnDate,
-      travelClass,
-      currency
-    );
-
-    const multiplier = travelClass === 'business' ? 2.5 : travelClass === 'first' ? 5 : 1;
-    const milesMult = travelClass === 'business' ? 3 : travelClass === 'first' ? 6 : 1;
-
-    const results: any[] = [];
-    const apiCurrency = currency === 'XOF' ? 'EUR' : currency;
-
-    // Parse Travelpayouts response format: { data: { "DEST": { "0": { price, airline, ... } } } }
-    if (apiData?.data) {
-      const destData = apiData.data[destination.split(' - ')[0]?.trim()] || {};
-      const airlineMap: Record<string, any> = {};
-
-      // Aggregate cheapest price per airline
-      for (const key of Object.keys(destData)) {
-        const ticket = destData[key];
-        const airlineCode = ticket.airline;
-        if (!airlineMap[airlineCode] || ticket.price < airlineMap[airlineCode].price) {
-          airlineMap[airlineCode] = ticket;
-        }
-      }
-
-      // Map IATA codes to airline names
-      const airlineNames: Record<string, string> = {
-        AF: 'Air France',
-        TK: 'Turkish Airlines',
-        EK: 'Emirates',
-        QR: 'Qatar Airways',
-      };
-
-      for (const [code, ticket] of Object.entries(airlineMap)) {
-        const airlineName = airlineNames[code] || code;
-        const pricing = MILES_PRICES[airlineName] || { base: 0.03, currency: 'USD' };
-        const pricePerMile = pricing.promo || pricing.base;
-        const milesRequired = Math.round((ticket.number_of_changes === 0 ? 25000 : 35000) * milesMult);
-        const cashPriceInApiCurrency = ticket.price * multiplier;
-        const cashPrice = convertCurrency(cashPriceInApiCurrency, apiCurrency, currency);
-        const milesPriceInApiCurrency = convertCurrency(pricePerMile, pricing.currency, apiCurrency);
-        const milesPriceInTarget = convertCurrency(pricePerMile, pricing.currency, currency);
-
-        results.push({
-          airline: airlineName,
-          cashPrice: Math.round(cashPrice),
-          milesRequired,
-          currency,
-          departureTime: ticket.departure_at ? ticket.departure_at.substring(11, 16) : '--:--',
-          arrivalTime: '--:--',
-          duration: ticket.duration ? `${Math.floor(ticket.duration / 60)}h ${ticket.duration % 60}m` : 'N/A',
-          isDirect: ticket.number_of_changes === 0,
-          class: travelClass,
-          bookingUrl: ticket.link
-            ? `https://www.aviasales.com${ticket.link}`
-            : `https://www.airfrance.sn`,
-          milesPriceUsed: milesPriceInTarget,
-          isPromoApplied: !!pricing.promo,
-          source: 'live',
-        });
-      }
+    const d = date.replace(/-/g, '/')
+    const params = new URLSearchParams({
+      fly_from: from, fly_to: to,
+      date_from: d, date_to: d,
+      curr: 'EUR', limit: '10', sort: 'price',
+      selected_cabins: cabinClass === 'economy' ? 'M' : cabinClass === 'business' ? 'C' : 'F',
+    })
+    if (returnDate) {
+      const r = returnDate.replace(/-/g, '/')
+      params.set('return_from', r)
+      params.set('return_to', r)
     }
 
-    // Fallback: if no live results, use calibrated estimates
-    if (results.length === 0) {
-      const airlines = ['Air France', 'Turkish Airlines'];
-      for (const name of airlines) {
-        const pricing = MILES_PRICES[name] || { base: 0.03, currency: 'USD' };
-        const pricePerMile = pricing.promo || pricing.base;
-        const milesPriceInTarget = convertCurrency(pricePerMile, pricing.currency, currency);
-        const baseCash = name === 'Air France'
-          ? convertCurrency(750, 'EUR', currency)
-          : convertCurrency(590, 'USD', currency);
-
-        results.push({
-          airline: name,
-          cashPrice: Math.round(baseCash * multiplier),
-          milesRequired: (name === 'Air France' ? 25000 : 35000) * milesMult,
-          currency,
-          departureTime: name === 'Air France' ? '10:30' : '22:15',
-          arrivalTime: name === 'Air France' ? '18:45' : '06:30',
-          duration: name === 'Air France' ? '6h 15m' : '8h 15m',
-          isDirect: name === 'Air France',
-          class: travelClass,
-          bookingUrl: name === 'Air France' ? 'https://www.airfrance.sn' : 'https://www.turkishairlines.com',
-          milesPriceUsed: milesPriceInTarget,
-          isPromoApplied: !!pricing.promo,
-          source: 'estimated',
-        });
-      }
-    }
-
-    return NextResponse.json({ results, source: results[0]?.source || 'none' });
-  } catch (error: any) {
-    console.error('Flight search error:', error.message);
-
-    // Return fallback data on error
-    const multiplier = travelClass === 'business' ? 2.5 : travelClass === 'first' ? 5 : 1;
-    const milesMult = travelClass === 'business' ? 3 : travelClass === 'first' ? 6 : 1;
-    const airlines = ['Air France', 'Turkish Airlines'];
-    const results = airlines.map((name) => {
-      const pricing = MILES_PRICES[name] || { base: 0.03, currency: 'USD' };
-      const pricePerMile = pricing.promo || pricing.base;
-      const milesPriceInTarget = convertCurrency(pricePerMile, pricing.currency, currency);
-      const baseCash = name === 'Air France'
-        ? convertCurrency(750, 'EUR', currency)
-        : convertCurrency(590, 'USD', currency);
-
-      return {
-        airline: name,
-        cashPrice: Math.round(baseCash * multiplier),
-        milesRequired: (name === 'Air France' ? 25000 : 35000) * milesMult,
-        currency,
-        departureTime: name === 'Air France' ? '10:30' : '22:15',
-        arrivalTime: name === 'Air France' ? '18:45' : '06:30',
-        duration: name === 'Air France' ? '6h 15m' : '8h 15m',
-        isDirect: name === 'Air France',
-        class: travelClass,
-        bookingUrl: name === 'Air France' ? 'https://www.airfrance.sn' : 'https://www.turkishairlines.com',
-        milesPriceUsed: milesPriceInTarget,
-        isPromoApplied: !!pricing.promo,
-        source: 'fallback',
-      };
-    });
-
-    return NextResponse.json(
-      { results, source: 'fallback', error: error.message },
-      { status: 200 } // Return 200 with fallback data so UI still works
-    );
+    const res = await fetch(`https://tequila.kiwi.com/v2/search?${params}`, {
+      headers: { apikey: apiKey },
+      next: { revalidate: CACHE_TTL },
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    return data.data ?? null
+  } catch {
+    return null
   }
+}
+
+function enrichWithMiles(flights: Flight[], cabinClass: string, currency: string) {
+  return flights.map(flight => {
+    const req = MILES_REQUIREMENTS[flight.airline]?.[cabinClass]
+      ?? { miles: Math.round(flight.price * 55), taxes: Math.round(flight.price * 0.15) }
+    const analysis = analyzeMiles(flight.price, req.taxes, req.miles, flight.airline, currency)
+    return { ...flight, miles: req.miles, taxes: req.taxes, analysis }
+  })
+}
+
+export async function GET(req: NextRequest) {
+  // Rate limit
+  const ip = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? 'unknown'
+  if (!checkRate(ip)) {
+    return NextResponse.json(
+      { error: 'Trop de requêtes. Attendez avant de chercher encore.' },
+      { status: 429 }
+    )
+  }
+
+  const sp = new URL(req.url).searchParams
+  const from       = (sp.get('from') ?? '').toUpperCase()
+  const to         = (sp.get('to') ?? '').toUpperCase()
+  const date       = sp.get('date') ?? new Date(Date.now() + 30*86400000).toISOString().slice(0,10)
+  const returnDate = sp.get('return') ?? undefined
+  const cabinClass = sp.get('class') ?? 'economy'
+  const currency   = sp.get('currency') ?? 'EUR'
+
+  if (!from || !to) {
+    return NextResponse.json({ error: 'Origine et destination requis' }, { status: 400 })
+  }
+
+  // Cache
+  const cacheKey = `flights:${from}:${to}:${date}:${cabinClass}:${currency}`
+  const cached = await cacheGet<object>(cacheKey)
+  if (cached) return NextResponse.json({ ...cached, cached: true })
+
+  // Tequila API
+  const rawFlights = await fetchTequila(from, to, date, cabinClass, returnDate)
+  let flights: Flight[]
+  let source: 'live' | 'fallback'
+
+  if (rawFlights && rawFlights.length > 0) {
+    source = 'live'
+    flights = rawFlights.slice(0, 10).map(f => ({
+      id: f.id,
+      airline: f.airlines?.[0] ?? 'Unknown',
+      iataCode: f.airlines?.[0] ?? 'XX',
+      price: f.price,
+      currency: f.currency ?? 'EUR',
+      departureTime: new Date(f.local_departure).toTimeString().slice(0, 5),
+      arrivalTime: new Date(f.local_arrival).toTimeString().slice(0, 5),
+      duration: Math.round(f.duration.total / 60),
+      stops: Math.max(0, (f.route?.length ?? 1) - 1),
+      isDirect: (f.route?.length ?? 1) === 1,
+      origin: from,
+      destination: to,
+      cabinClass,
+      source: 'live' as const,
+    }))
+  } else {
+    source = 'fallback'
+    flights = getMockFlights({ from, to, date, cabinClass, currency })
+  }
+
+  const enriched = enrichWithMiles(flights, cabinClass, currency)
+  // Tri: meilleure valeur par mile en premier
+  enriched.sort((a, b) => b.analysis.valuePerMile - a.analysis.valuePerMile)
+
+  const result = { flights: enriched, from, to, date, cabinClass, currency, source, cached: false }
+  await cacheSet(cacheKey, result, CACHE_TTL)
+
+  return NextResponse.json(result)
 }
